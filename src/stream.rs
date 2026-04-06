@@ -13,7 +13,7 @@ impl VpiStream {
      * - vpiStreamGetThreadHandle
      *  ^ Don't need right now
      */
-    fn new(flags: u64) -> VpiResult<Self> {
+    pub fn new(flags: u64) -> VpiResult<Self> {
         let mut stream_ptr = ptr::null_mut();
 
         unsafe { check(sys::vpiStreamCreate(flags, &raw mut stream_ptr))? };
@@ -23,7 +23,7 @@ impl VpiStream {
         })
     }
 
-    fn wrap_cuda(cuda_stream: sys::CUstream, flags: u64) -> VpiResult<Self> {
+    pub fn wrap_cuda(cuda_stream: sys::CUstream, flags: u64) -> VpiResult<Self> {
         let mut stream_ptr = ptr::null_mut();
 
         unsafe {
@@ -39,17 +39,17 @@ impl VpiStream {
         })
     }
 
-    fn flush(&self) -> VpiResult<()> {
+    pub fn flush(&self) -> VpiResult<()> {
         unsafe { check(sys::vpiStreamFlush(self.handle.as_ptr()))? };
         Ok(())
     }
 
-    fn synchronize(&self) -> VpiResult<()> {
+    pub fn synchronize(&self) -> VpiResult<()> {
         unsafe { check(sys::vpiStreamSync(self.handle.as_ptr()))? };
         Ok(())
     }
 
-    fn wait_event(&self, event: &VpiEvent) -> VpiResult<()> {
+    pub fn wait_event(&self, event: &VpiEvent) -> VpiResult<()> {
         unsafe {
             check(sys::vpiStreamWaitEvent(
                 self.handle.as_ptr(),
@@ -59,7 +59,7 @@ impl VpiStream {
         Ok(())
     }
 
-    fn get_flags(&self) -> VpiResult<u64> {
+    pub fn get_flags(&self) -> VpiResult<u64> {
         let mut flags = u64::default();
 
         unsafe { check(sys::vpiStreamGetFlags(self.handle.as_ptr(), &raw mut flags))? };

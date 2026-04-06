@@ -8,7 +8,7 @@ pub struct VpiEvent {
 }
 
 impl VpiEvent {
-    fn new(flags: u64) -> VpiResult<Self> {
+    pub fn new(flags: u64) -> VpiResult<Self> {
         let mut event_ptr = ptr::null_mut();
 
         unsafe { check(sys::vpiEventCreate(flags, &raw mut event_ptr))? };
@@ -18,7 +18,7 @@ impl VpiEvent {
         })
     }
 
-    fn record(&self, stream: &VpiStream) -> VpiResult<()> {
+    pub fn record(&self, stream: &VpiStream) -> VpiResult<()> {
         unsafe {
             check(sys::vpiEventRecord(
                 self.handle.as_ptr(),
@@ -29,7 +29,7 @@ impl VpiEvent {
         Ok(())
     }
 
-    fn synchronize(&self) -> VpiResult<()> {
+    pub fn synchronize(&self) -> VpiResult<()> {
         unsafe { check(sys::vpiEventSync(self.handle.as_ptr()))? };
 
         Ok(())
@@ -37,7 +37,7 @@ impl VpiEvent {
 
     // TODO: query
 
-    fn elapsed_millis(&self, start: &VpiEvent) -> VpiResult<f32> {
+    pub fn elapsed_millis(&self, start: &VpiEvent) -> VpiResult<f32> {
         let mut elapsed_millis = f32::default();
 
         // treat self as the end
@@ -52,7 +52,7 @@ impl VpiEvent {
         Ok(elapsed_millis)
     }
 
-    fn get_flags(&self) -> VpiResult<u64> {
+    pub fn get_flags(&self) -> VpiResult<u64> {
         let mut flags = u64::default();
 
         unsafe { check(sys::vpiEventGetFlags(self.handle.as_ptr(), &raw mut flags))? };

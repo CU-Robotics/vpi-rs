@@ -16,7 +16,7 @@ impl VpiContext {
      * - vpiContextPop
      *  ^ Ownership semantics are complicated
      */
-    fn new(flags: u64) -> VpiResult<Self> {
+    pub fn new(flags: u64) -> VpiResult<Self> {
         let mut context_ptr = ptr::null_mut();
 
         unsafe { check(sys::vpiContextCreate(flags, &raw mut context_ptr))? };
@@ -26,7 +26,7 @@ impl VpiContext {
         })
     }
 
-    fn wrap_cuda(cuda_context: sys::CUcontext, flags: u64) -> VpiResult<Self> {
+    pub fn wrap_cuda(cuda_context: sys::CUcontext, flags: u64) -> VpiResult<Self> {
         let mut context_ptr = ptr::null_mut();
 
         unsafe {
@@ -42,7 +42,7 @@ impl VpiContext {
         })
     }
 
-    fn current() -> VpiResult<Self> {
+    pub fn current() -> VpiResult<Self> {
         let mut context_ptr = ptr::null_mut();
 
         unsafe { check(sys::vpiContextGetCurrent(&raw mut context_ptr))? };
@@ -52,12 +52,12 @@ impl VpiContext {
         })
     }
 
-    fn set_current(&self) -> VpiResult<()> {
+    pub fn set_current(&self) -> VpiResult<()> {
         unsafe { check(sys::vpiContextSetCurrent(self.handle.as_ptr()))? };
         Ok(())
     }
 
-    fn get_flags(&self) -> VpiResult<u64> {
+    pub fn get_flags(&self) -> VpiResult<u64> {
         let mut flags = u64::default();
 
         unsafe {

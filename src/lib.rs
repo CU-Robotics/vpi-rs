@@ -1,3 +1,4 @@
+pub mod array;
 pub mod context;
 pub mod event;
 pub mod stream;
