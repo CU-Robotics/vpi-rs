@@ -1,12 +1,18 @@
+use crate::event::VpiEvent;
 use crate::sys;
 use crate::util::{self, VpiResult, check};
 use std::ptr;
 
 pub struct VpiStream {
-    handle: ptr::NonNull<sys::VPIStreamImpl>,
+    pub(crate) handle: ptr::NonNull<sys::VPIStreamImpl>,
 }
 
 impl VpiStream {
+    /**
+     * Skip:
+     * - vpiStreamGetThreadHandle
+     *  ^ Don't need right now
+     */
     fn new(flags: u64) -> VpiResult<Self> {
         let mut stream_ptr = ptr::null_mut();
 
@@ -17,7 +23,7 @@ impl VpiStream {
         })
     }
 
-    fn from_cuda_stream(cuda_stream: sys::CUstream, flags: u64) -> VpiResult<Self> {
+    fn wrap_cuda(cuda_stream: sys::CUstream, flags: u64) -> VpiResult<Self> {
         let mut stream_ptr = ptr::null_mut();
 
         unsafe {
@@ -43,7 +49,23 @@ impl VpiStream {
         Ok(())
     }
 
-    // TODO: wait on event
+    fn wait_event(&self, event: &VpiEvent) -> VpiResult<()> {
+        unsafe {
+            check(sys::vpiStreamWaitEvent(
+                self.handle.as_ptr(),
+                event.handle.as_ptr(),
+            ))?
+        };
+        Ok(())
+    }
+
+    fn get_flags(&self) -> VpiResult<u64> {
+        let mut flags = u64::default();
+
+        unsafe { check(sys::vpiStreamGetFlags(self.handle.as_ptr(), &raw mut flags))? };
+
+        Ok(flags)
+    }
 }
 
 impl Drop for VpiStream {
