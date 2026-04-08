@@ -70,3 +70,8 @@ pub fn check(status: sys::VPIStatus) -> VpiResult<()> {
         Err(status.into())
     }
 }
+
+pub enum AllocType {
+    Host,
+    Cuda,
+}

@@ -1,6 +1,7 @@
 pub mod array;
 pub mod context;
 pub mod event;
+pub mod image;
 pub mod stream;
 pub mod sys;
 mod util;
