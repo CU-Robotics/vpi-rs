@@ -1,12 +1,98 @@
 use crate::sys;
 use crate::util::{self, VpiResult, check};
 use std::ffi::c_void;
-use std::marker::{PhantomData, PhantomPinned};
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::ptr;
+
+pub trait ImageDataBacking {
+    fn image_data(&self) -> sys::VPIImageData;
+}
+
+#[derive(Default)]
+pub struct ImageDataBuilder {
+    buffer_type: Option<sys::VPIImageBufferType>,
+    cuda_array: Option<sys::cudaArray_t>,
+    pitch: Vec<sys::VPIImagePlanePitchLinear>,
+}
+
+impl ImageDataBuilder {
+    pub fn cuda(mut self) -> Self {
+        self.buffer_type = Some(sys::VPIImageBufferType_VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR);
+        self
+    }
+
+    pub fn array(mut self, array: sys::cudaArray_t) -> Self {
+        self.cuda_array = Some(array);
+        self
+    }
+
+    pub unsafe fn plane(
+        mut self,
+        data: *mut c_void,
+        width: usize,
+        height: usize,
+        pitch_bytes: usize,
+        pixel_type: sys::VPIPixelType,
+    ) -> Self {
+        self.pitch.push(sys::VPIImagePlanePitchLinear {
+            pixelType: pixel_type,
+            width: width as i32,
+            height: height as i32,
+            pitchBytes: pitch_bytes as i32,
+            data,
+        });
+        self
+    }
+}
+
+impl ImageDataBacking for ImageDataBuilder {
+    fn image_data(&self) -> sys::VPIImageData {
+        let mut data: sys::VPIImageData = unsafe { std::mem::zeroed() };
+
+        // handle cudaArray_t
+        if let Some(array) = self.cuda_array {
+            data.bufferType = sys::VPIImageBufferType_VPI_IMAGE_BUFFER_CUDA_ARRAY;
+            data.buffer.cudaarray = array;
+
+            return data;
+        }
+
+        // handle pitched data
+        data.bufferType = self
+            .buffer_type
+            .unwrap_or(sys::VPIImageBufferType_VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR);
+
+        data.buffer.pitch.numPlanes = self.pitch.len() as i32;
+
+        let max_planes = unsafe { data.buffer.pitch.planes.len() };
+        for (i, p) in self.pitch.iter().take(max_planes).enumerate() {
+            unsafe {
+                data.buffer.pitch.planes[i] = *p;
+            }
+        }
+
+        data
+    }
+}
 
 pub struct BorrowedImage<'data> {
     inner: VpiImage,
     _marker: PhantomData<&'data mut ()>,
+}
+
+impl Deref for BorrowedImage<'_> {
+    type Target = VpiImage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for BorrowedImage<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
 }
 
 /// Host pitch.
@@ -151,6 +237,7 @@ impl<'img> ImageLock<'img> {
                     _marker: PhantomData,
                 })
             }
+            // Don't really care about NvBuffer or EGL right now.
             _ => unimplemented!(),
         }
     }
@@ -167,6 +254,14 @@ pub struct VpiImage {
 }
 
 impl VpiImage {
+    /**
+     * Skip:
+     * - vpiImageSetView
+     * - vpiImageSetWrapper
+     *  ^ Ownership semantics are complicated
+     * - vpiImageLock
+     *  ^ Lock without data pretty much useless
+     */
     pub fn new(
         width: usize,
         height: usize,
@@ -187,6 +282,33 @@ impl VpiImage {
 
         Ok(Self {
             handle: ptr::NonNull::new(image_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        })
+    }
+
+    pub fn wrap<'data>(
+        backing: &'data mut impl ImageDataBacking,
+        flags: u64,
+    ) -> VpiResult<BorrowedImage<'data>> {
+        let mut image_ptr = ptr::null_mut();
+
+        let image_data = backing.image_data();
+
+        unsafe {
+            check(sys::vpiImageCreateWrapper(
+                &raw const image_data,
+                ptr::null(),
+                flags,
+                &raw mut image_ptr,
+            ))?
+        };
+
+        let image = Self {
+            handle: ptr::NonNull::new(image_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        };
+
+        Ok(BorrowedImage {
+            inner: image,
+            _marker: PhantomData,
         })
     }
 
@@ -230,7 +352,7 @@ impl VpiImage {
         Ok(())
     }
 
-    pub fn lock<'img>(
+    pub fn lock(
         &mut self,
         mode: sys::VPILockMode,
         buffer_type: sys::VPIImageBufferType,
@@ -247,6 +369,28 @@ impl VpiImage {
         };
 
         Ok(ImageLock { image: self, data })
+    }
+
+    pub fn get_roi(&mut self, roi: sys::VPIRectangleI, flags: u64) -> VpiResult<BorrowedImage<'_>> {
+        let mut roi_ptr = ptr::null_mut();
+
+        unsafe {
+            check(sys::vpiImageCreateView(
+                self.handle.as_ptr(),
+                &raw const roi,
+                flags,
+                &raw mut roi_ptr,
+            ))?
+        };
+
+        let image = Self {
+            handle: ptr::NonNull::new(roi_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        };
+
+        Ok(BorrowedImage {
+            inner: image,
+            _marker: PhantomData,
+        })
     }
 }
 
