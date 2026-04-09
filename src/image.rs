@@ -1,29 +1,23 @@
 use crate::sys;
-use crate::util::{self, VpiResult, check};
+use crate::util::{self, VpiError, VpiResult, check};
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::ptr;
 
 pub trait ImageDataBacking {
-    fn image_data(&self) -> sys::VPIImageData;
+    fn image_data(&self) -> VpiResult<sys::VPIImageData>;
 }
 
 #[derive(Default)]
 pub struct ImageDataBuilder {
     buffer_type: Option<sys::VPIImageBufferType>,
-    cuda_array: Option<sys::cudaArray_t>,
     pitch: Vec<sys::VPIImagePlanePitchLinear>,
 }
 
 impl ImageDataBuilder {
-    pub fn cuda(mut self) -> Self {
+    pub unsafe fn cuda(mut self) -> Self {
         self.buffer_type = Some(sys::VPIImageBufferType_VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR);
-        self
-    }
-
-    pub fn array(mut self, array: sys::cudaArray_t) -> Self {
-        self.cuda_array = Some(array);
         self
     }
 
@@ -47,32 +41,54 @@ impl ImageDataBuilder {
 }
 
 impl ImageDataBacking for ImageDataBuilder {
-    fn image_data(&self) -> sys::VPIImageData {
-        let mut data: sys::VPIImageData = unsafe { std::mem::zeroed() };
+    fn image_data(&self) -> VpiResult<sys::VPIImageData> {
+        let mut data = unsafe { std::mem::zeroed::<sys::VPIImageData>() };
 
-        // handle cudaArray_t
-        if let Some(array) = self.cuda_array {
-            data.bufferType = sys::VPIImageBufferType_VPI_IMAGE_BUFFER_CUDA_ARRAY;
-            data.buffer.cudaarray = array;
+        let num_planes = Some(self.pitch.len())
+            .filter(|&l| l > 0usize)
+            .ok_or(VpiError::App(
+                "Invalid number of planes given to image builder",
+            ))?;
 
-            return data;
-        }
-
-        // handle pitched data
+        data.buffer.pitch.numPlanes = num_planes as i32;
         data.bufferType = self
             .buffer_type
             .unwrap_or(sys::VPIImageBufferType_VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR);
 
-        data.buffer.pitch.numPlanes = self.pitch.len() as i32;
-
         let max_planes = unsafe { data.buffer.pitch.planes.len() };
         for (i, p) in self.pitch.iter().take(max_planes).enumerate() {
+            // Validate all plane arguments
+            let data_ptr = Some(p.data)
+                .filter(|&p| !p.is_null())
+                .ok_or(VpiError::App("Invalid data pointer given to image builder"))?;
+
+            let width = Some(p.width)
+                .filter(|&w| w > 0)
+                .ok_or(VpiError::App("Invalid width given to image builder"))?;
+
+            let height = Some(p.height)
+                .filter(|&h| h > 0)
+                .ok_or(VpiError::App("Invalid height given to image builder"))?;
+
+            let pitch_bytes = Some(p.pitchBytes)
+                .filter(|&p| p > 0)
+                .ok_or(VpiError::App("Invalid pitch given to image builder"))?;
+
+            let pixel_type = Some(p.pixelType)
+                .ok_or(VpiError::App("Invalid pixel type given to image builder"))?;
+
             unsafe {
-                data.buffer.pitch.planes[i] = *p;
+                data.buffer.pitch.planes[i] = sys::VPIImagePlanePitchLinear {
+                    data: data_ptr,
+                    width,
+                    height,
+                    pitchBytes: pitch_bytes,
+                    pixelType: pixel_type,
+                };
             }
         }
 
-        data
+        Ok(data)
     }
 }
 
@@ -290,8 +306,7 @@ impl VpiImage {
         flags: u64,
     ) -> VpiResult<BorrowedImage<'data>> {
         let mut image_ptr = ptr::null_mut();
-
-        let image_data = backing.image_data();
+        let image_data = backing.image_data()?;
 
         unsafe {
             check(sys::vpiImageCreateWrapper(
