@@ -1,6 +1,6 @@
 use crate::event::VpiEvent;
 use crate::sys;
-use crate::util::{self, VpiResult, check};
+use crate::util::{self, VpiError, VpiResult, check};
 use std::ptr;
 
 pub struct VpiPayload {
@@ -8,10 +8,11 @@ pub struct VpiPayload {
 }
 
 impl VpiPayload {
-    pub(crate) unsafe fn from_raw(payload_ptr: *mut sys::VPIPayloadImpl) -> Self {
-        Self {
-            handle: ptr::NonNull::new(payload_ptr).expect(util::FFI_SUCCESS_CONTRACT),
-        }
+    pub(crate) unsafe fn from_raw(payload_ptr: *mut sys::VPIPayloadImpl) -> VpiResult<Self> {
+        Ok(Self {
+            handle: ptr::NonNull::new(payload_ptr)
+                .ok_or(VpiError::App("Payload pointer was NULL"))?,
+        })
     }
 
     pub fn get_flags(&self) -> VpiResult<u64> {

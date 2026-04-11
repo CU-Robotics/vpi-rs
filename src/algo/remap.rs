@@ -22,7 +22,7 @@ impl Remap {
         };
 
         Ok(Self {
-            payload: unsafe { VpiPayload::from_raw(payload_ptr) },
+            payload: unsafe { VpiPayload::from_raw(payload_ptr)? },
         })
     }
 
