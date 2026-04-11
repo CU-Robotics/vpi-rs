@@ -1,7 +1,12 @@
 use crate::stream::VpiStream;
 use crate::sys;
-use crate::util::{self, VpiResult, check};
+use crate::util::{self, VpiError, VpiResult, check};
 use std::ptr;
+
+pub enum VpiEventStatus {
+    Signaled,
+    NotSignaled,
+}
 
 pub struct VpiEvent {
     pub(crate) handle: ptr::NonNull<sys::VPIEventImpl>,
@@ -35,7 +40,24 @@ impl VpiEvent {
         Ok(())
     }
 
-    // TODO: query
+    pub fn query(&self) -> VpiResult<VpiEventStatus> {
+        let mut state_code = sys::VPIEventState::default();
+
+        unsafe {
+            check(sys::vpiEventQuery(
+                self.handle.as_ptr(),
+                &raw mut state_code,
+            ))?
+        }
+
+        let state = match state_code {
+            sys::VPIEventState_VPI_EVENT_STATE_SIGNALED => VpiEventStatus::Signaled,
+            sys::VPIEventState_VPI_EVENT_STATE_NOT_SIGNALED => VpiEventStatus::NotSignaled,
+            _ => return Err(VpiError::App("Unknown event status")),
+        };
+
+        Ok(state)
+    }
 
     pub fn elapsed_millis(&self, start: &VpiEvent) -> VpiResult<f32> {
         let mut elapsed_millis = f32::default();

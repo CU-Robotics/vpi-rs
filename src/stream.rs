@@ -3,6 +3,37 @@ use crate::sys;
 use crate::util::{self, VpiResult, check};
 use std::ptr;
 
+pub struct VpiPayload {
+    pub(crate) handle: ptr::NonNull<sys::VPIPayloadImpl>,
+}
+
+impl VpiPayload {
+    pub(crate) unsafe fn from_raw(payload_ptr: *mut sys::VPIPayloadImpl) -> Self {
+        Self {
+            handle: ptr::NonNull::new(payload_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        }
+    }
+
+    pub fn get_flags(&self) -> VpiResult<u64> {
+        let mut flags = u64::default();
+
+        unsafe {
+            check(sys::vpiPayloadGetFlags(
+                self.handle.as_ptr(),
+                &raw mut flags,
+            ))?
+        };
+
+        Ok(flags)
+    }
+}
+
+impl Drop for VpiPayload {
+    fn drop(&mut self) {
+        unsafe { sys::vpiPayloadDestroy(self.handle.as_ptr()) };
+    }
+}
+
 pub struct VpiStream {
     pub(crate) handle: ptr::NonNull<sys::VPIStreamImpl>,
 }
