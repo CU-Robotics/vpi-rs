@@ -1,17 +1,27 @@
 use crate::sys::{self, VPIStatus};
+use thiserror::Error;
 
 pub const FFI_SUCCESS_CONTRACT: &str = "Status was VPI_SUCCESS";
 
-#[derive(Debug)]
-pub struct VpiError {
+#[derive(Debug, Error)]
+#[error("VpiError: {name} ({status}); {message}")]
+pub struct VpiSysError {
     status: VPIStatus,
     name: String,
     message: String,
 }
 
+#[derive(Debug, Error)]
+pub enum VpiError {
+    #[error("System error: {0}")]
+    Sys(#[from] VpiSysError),
+    #[error("Application error: {0}")]
+    App(&'static str),
+}
+
 pub type VpiResult<T> = Result<T, VpiError>;
 
-impl From<VPIStatus> for VpiError {
+impl From<VPIStatus> for VpiSysError {
     fn from(status: VPIStatus) -> Self {
         // SAFETY: shouldn't fail
         let name_ptr = unsafe { sys::vpiStatusGetName(status) };
@@ -53,20 +63,10 @@ impl From<VPIStatus> for VpiError {
     }
 }
 
-impl std::fmt::Display for VpiError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "VpiError: {} ({}); {}",
-            self.name, self.status, self.message
-        )
-    }
-}
-
 pub fn check(status: sys::VPIStatus) -> VpiResult<()> {
     if status == sys::VPIStatus_VPI_SUCCESS {
         Ok(())
     } else {
-        Err(status.into())
+        Err(Into::<VpiSysError>::into(status).into())
     }
 }
