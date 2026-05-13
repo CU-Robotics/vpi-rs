@@ -42,15 +42,12 @@ impl From<VPIStatus> for VpiSysError {
         // we already have the status, ignore return value
         // SAFETY: shouldn't fail
         let _ = unsafe {
-            sys::vpiGetLastStatusMessage(
-                message_buffer.as_mut_ptr().cast::<i8>(),
-                message_buffer.len() as i32,
-            )
+            sys::vpiGetLastStatusMessage(message_buffer.as_mut_ptr(), message_buffer.len() as i32)
         };
 
         // SAFETY: message buffer can safely be converted to CStr
         let message = unsafe {
-            std::ffi::CStr::from_ptr(message_buffer.as_ptr().cast::<i8>())
+            std::ffi::CStr::from_ptr(message_buffer.as_ptr())
                 .to_string_lossy()
                 .into_owned()
         };

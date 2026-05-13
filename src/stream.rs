@@ -55,7 +55,7 @@ impl VpiStream {
         })
     }
 
-    pub fn wrap_cuda(cuda_stream: sys::CUstream, flags: u64) -> VpiResult<Self> {
+    pub unsafe fn wrap_cuda(cuda_stream: sys::CUstream, flags: u64) -> VpiResult<Self> {
         let mut stream_ptr = ptr::null_mut();
 
         unsafe {

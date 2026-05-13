@@ -26,7 +26,7 @@ impl VpiContext {
         })
     }
 
-    pub fn wrap_cuda(cuda_context: sys::CUcontext, flags: u64) -> VpiResult<Self> {
+    pub unsafe fn wrap_cuda(cuda_context: sys::CUcontext, flags: u64) -> VpiResult<Self> {
         let mut context_ptr = ptr::null_mut();
 
         unsafe {
