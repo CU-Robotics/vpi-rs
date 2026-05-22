@@ -1,28 +1,38 @@
+use std::collections::HashMap;
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-/*
+fn linux_multiarch_gnu() -> Option<&'static str> {
+    let os = std::env::var("CARGO_CFG_TARGET_OS").ok()?;
+    let arch = std::env::var("CARGO_CFG_TARGET_ARCH").ok()?;
+    let env_abi = std::env::var("CARGO_CFG_TARGET_ENV").ok()?;
 
-/usr/bin/c++
--I/usr/local/cuda/include
-CMakeFiles/vpi_sample_01_convolve_2d.dir/main.cpp.o -o vpi_sample_01_convolve_2d
--L/usr/local/cuda/lib64
--Wl,-rpath,/usr/local/cuda/lib64:/opt/nvidia/vpi3/lib/x86_64-linux-gnu:/usr/local/lib /opt/nvidia/vpi3/lib/x86_64-linux-gnu/libnvvpi.so.3.0.10 /usr/local/lib/libopencv_imgcodecs.so.4.13.0 /usr/local/lib/libopencv_imgproc.so.4.13.0 /usr/local/lib/libopencv_core.so.4.13.0 /usr/local/lib/libopencv_cudev.so.4.13.0
-
-*/
+    match (arch.as_str(), os.as_str(), env_abi.as_str()) {
+        ("x86_64", "linux", "gnu") => Some("x86_64-linux-gnu"),
+        ("aarch64", "linux", "gnu") => Some("aarch64-linux-gnu"),
+        _ => None,
+    }
+}
 
 fn main() {
     // .so location and linker flag
-    println!("cargo:rustc-link-search=native=/opt/nvidia/vpi3/lib/x86_64-linux-gnu");
+    println!(
+        "cargo:rustc-link-search=native=/opt/nvidia/vpi3/lib/{}",
+        linux_multiarch_gnu().expect("Unsupported arch")
+    );
     println!("cargo:rustc-link-lib=dylib=nvvpi");
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
+        .clang_macro_fallback()
         .clang_arg("-I/opt/nvidia/vpi3/include")
         .clang_arg("-I/usr/local/cuda/include")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .default_macro_constant_type(bindgen::MacroTypeVariation::Unsigned)
         // Finish the builder and generate the bindings.
         .generate()
         .expect("Unable to generate bindings");

@@ -8,6 +8,7 @@
 #include <vpi/Image.h>
 #include <vpi/LensDistortionModels.h>
 #include <vpi/WarpMap.h>
+#include <vpi/ImageFormat.h>
 
 // algo
 #include <vpi/algo/ConvertImageFormat.h>
