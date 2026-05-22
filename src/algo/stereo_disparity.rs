@@ -38,7 +38,6 @@ pub struct StereoDisparityEstimator {
 
 impl StereoDisparityEstimator {
     pub fn new(
-        self,
         backends: u64,
         width: usize,
         height: usize,

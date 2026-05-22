@@ -11,12 +11,18 @@ pub trait ImageDataBacking {
 
 #[derive(Default)]
 pub struct ImageDataBuilder {
+    format: Option<sys::VPIImageFormat>,
     buffer_type: Option<sys::VPIImageBufferType>,
     pitch: Vec<sys::VPIImagePlanePitchLinear>,
 }
 
 impl ImageDataBuilder {
-    pub unsafe fn cuda(mut self) -> Self {
+    pub fn format(mut self, format: sys::VPIImageFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    pub fn cuda(mut self) -> Self {
         self.buffer_type = Some(sys::VPIImageBufferType_VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR);
         self
     }
@@ -50,6 +56,9 @@ impl ImageDataBacking for ImageDataBuilder {
                 "Invalid number of planes given to image builder",
             ))?;
 
+        data.buffer.pitch.format = self
+            .format
+            .ok_or(VpiError::App("Image data requires format to be specified"))?;
         data.buffer.pitch.numPlanes = num_planes as i32;
         data.bufferType = self
             .buffer_type
