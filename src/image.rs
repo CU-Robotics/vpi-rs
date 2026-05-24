@@ -101,9 +101,28 @@ impl ImageDataBacking for ImageDataBuilder {
     }
 }
 
-pub struct BorrowedImage<'data> {
+pub struct BorrowedImageMut<'data> {
     inner: VpiImage,
     _marker: PhantomData<&'data mut ()>,
+}
+
+impl Deref for BorrowedImageMut<'_> {
+    type Target = VpiImage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for BorrowedImageMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+pub struct BorrowedImage<'data> {
+    inner: VpiImage,
+    _marker: PhantomData<&'data ()>,
 }
 
 impl Deref for BorrowedImage<'_> {
@@ -114,7 +133,32 @@ impl Deref for BorrowedImage<'_> {
     }
 }
 
-impl DerefMut for BorrowedImage<'_> {
+pub struct BorrowedImageUnchecked {
+    inner: VpiImage,
+}
+
+impl BorrowedImageUnchecked {
+    pub unsafe fn set_roi(&mut self, parent: &VpiImage, roi: sys::VPIRectangleI) -> VpiResult<()> {
+        unsafe {
+            check(sys::vpiImageSetView(
+                self.inner.handle.as_ptr(),
+                parent.handle.as_ptr(),
+                &raw const roi,
+            ))?
+        };
+        Ok(())
+    }
+}
+
+impl Deref for BorrowedImageUnchecked {
+    type Target = VpiImage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for BorrowedImageUnchecked {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -310,8 +354,34 @@ impl VpiImage {
         })
     }
 
-    pub fn wrap<'data>(
+    pub fn wrap_mut<'data>(
         backing: &'data mut impl ImageDataBacking,
+        flags: u64,
+    ) -> VpiResult<BorrowedImageMut<'data>> {
+        let mut image_ptr = ptr::null_mut();
+        let image_data = backing.image_data()?;
+
+        unsafe {
+            check(sys::vpiImageCreateWrapper(
+                &raw const image_data,
+                ptr::null(),
+                flags,
+                &raw mut image_ptr,
+            ))?
+        };
+
+        let image = Self {
+            handle: ptr::NonNull::new(image_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        };
+
+        Ok(BorrowedImageMut {
+            inner: image,
+            _marker: PhantomData,
+        })
+    }
+
+    pub fn wrap<'data>(
+        backing: &'data impl ImageDataBacking,
         flags: u64,
     ) -> VpiResult<BorrowedImage<'data>> {
         let mut image_ptr = ptr::null_mut();
@@ -334,6 +404,29 @@ impl VpiImage {
             inner: image,
             _marker: PhantomData,
         })
+    }
+
+    pub fn wrap_unchecked(
+        backing: &impl ImageDataBacking,
+        flags: u64,
+    ) -> VpiResult<BorrowedImageUnchecked> {
+        let mut image_ptr = ptr::null_mut();
+        let image_data = backing.image_data()?;
+
+        unsafe {
+            check(sys::vpiImageCreateWrapper(
+                &raw const image_data,
+                ptr::null(),
+                flags,
+                &raw mut image_ptr,
+            ))?
+        };
+
+        let image = Self {
+            handle: ptr::NonNull::new(image_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        };
+
+        Ok(BorrowedImageUnchecked { inner: image })
     }
 
     pub fn get_size(&self) -> VpiResult<(usize, usize)> {
@@ -415,6 +508,29 @@ impl VpiImage {
             inner: image,
             _marker: PhantomData,
         })
+    }
+
+    pub fn get_roi_unchecked(
+        &mut self,
+        roi: sys::VPIRectangleI,
+        flags: u64,
+    ) -> VpiResult<BorrowedImageUnchecked> {
+        let mut roi_ptr = ptr::null_mut();
+
+        unsafe {
+            check(sys::vpiImageCreateView(
+                self.handle.as_ptr(),
+                &raw const roi,
+                flags,
+                &raw mut roi_ptr,
+            ))?
+        };
+
+        let image = Self {
+            handle: ptr::NonNull::new(roi_ptr).expect(util::FFI_SUCCESS_CONTRACT),
+        };
+
+        Ok(BorrowedImageUnchecked { inner: image })
     }
 }
 

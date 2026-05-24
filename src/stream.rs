@@ -1,6 +1,7 @@
 use crate::event::VpiEvent;
 use crate::sys;
 use crate::util::{self, VpiError, VpiResult, check};
+use std::ffi::c_void;
 use std::ptr;
 
 pub struct VpiPayload {
@@ -97,6 +98,20 @@ impl VpiStream {
         unsafe { check(sys::vpiStreamGetFlags(self.handle.as_ptr(), &raw mut flags))? };
 
         Ok(flags)
+    }
+
+    pub unsafe fn submit_host_function(
+        &self,
+        host_function: unsafe extern "C" fn(*mut c_void),
+        host_data: *mut c_void,
+    ) -> VpiResult<()> {
+        unsafe {
+            check(sys::vpiSubmitHostFunction(
+                self.handle.as_ptr(),
+                Some(host_function),
+                host_data,
+            ))
+        }
     }
 }
 
