@@ -202,6 +202,10 @@ impl<'img> HostPlane<'img> {
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         unsafe { std::slice::from_raw_parts_mut(self.inner.data.cast(), self.size_bytes()) }
     }
+
+    pub fn as_raw_ptr(&mut self) -> *mut c_void {
+        self.inner.data
+    }
 }
 
 pub struct HostPitch<'img> {

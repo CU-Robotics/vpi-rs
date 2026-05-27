@@ -9,3 +9,11 @@ mod util;
 pub mod warp_map;
 
 pub use util::{VpiError, VpiResult};
+
+#[macro_export]
+/// helper for VPI flags
+macro_rules! flags {
+    ($($flag:ident),* $(,)?) => {
+        0u64 $(| ($crate::sys::$flag as u64))*
+    };
+}
