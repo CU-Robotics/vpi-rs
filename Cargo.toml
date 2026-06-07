@@ -8,6 +8,3 @@ bindgen = "0.71.0"
 
 [dependencies]
 thiserror = "2.0.18"
-
-[lints]
-workspace = true
