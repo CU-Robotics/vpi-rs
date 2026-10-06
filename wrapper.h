@@ -16,3 +16,4 @@
 #include <vpi/algo/Remap.h>
 #include <vpi/algo/Rescale.h>
 #include <vpi/algo/StereoDisparity.h>
+#include <vpi/algo/TemporalNoiseReduction.h>
