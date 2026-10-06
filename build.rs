@@ -1,8 +1,5 @@
-use std::collections::HashMap;
 use std::env;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::PathBuf;
 
 fn linux_multiarch_gnu() -> Option<&'static str> {
     let os = std::env::var("CARGO_CFG_TARGET_OS").ok()?;
